@@ -103,13 +103,12 @@ Recommended package families for this project:
 ## Data requirements
 
 Minimum required fields (example):
-
-- `date`
-- `unit_id` (SKU/store/region)
-- `sales`
-- `treated_flag`
-- `media_spend`
-- Covariates (promo flags, price index, holiday/event indicators, etc.)
+| Column | Description |
+|---|---|
+| `date` | Date of the observation (daily granularity). |
+| `sales` | Total sales for the chosen sales metric (e.g., halo sales). |
+| `media_spend_*` | One column per media platform (e.g., `meta_spend`, `gshopping_spend`, `criteo_sponsored_spend`). |
+| `covariates` (optional) | Promo flags, price index, holiday/event indicators, etc. |
 
 Best practices:
 
