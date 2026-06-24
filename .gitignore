@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Data
+data
+outputs
+
 # Virtual environments
 .venv/
 venv/
