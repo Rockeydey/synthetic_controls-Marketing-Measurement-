@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Brand-Level Synthetic Control · Prophet Measurement</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+      background: #f0f4f9;
+      color: #0b1a33;
+      padding: 24px;
+    }
+    .dashboard { max-width: 1440px; margin: 0 auto; }
+
+    /* Header – brand focused */
+    .header {
+      background: linear-gradient(135deg, #0b1a33 0%, #1a365d 100%);
+      border-radius: 20px;
+      padding: 28px 36px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      align-items: center;
+      box-shadow: 0 8px 24px rgba(11,26,51,0.15);
+    }
+    .header .brand-info h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: white;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header .brand-info h1 small {
+      font-weight: 400;
+      font-size: 16px;
+      color: #94b8e8;
+      margin-left: 4px;
+    }
+    .header .brand-info .sub {
+      color: #b0c9e8;
+      font-size: 14px;
+      margin-top: 4px;
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .header .brand-meta {
+      display: flex;
+      gap: 28px;
+      flex-wrap: wrap;
+      background: rgba(255,255,255,0.08);
+      padding: 12px 24px;
+      border-radius: 14px;
+      backdrop-filter: blur(4px);
+    }
+    .brand-meta .item { display: flex; flex-direction: column; }
+    .brand-meta .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #94b8e8; }
+    .brand-meta .value { font-weight: 600; font-size: 18px; color: white; }
+    .brand-meta .value.accent { color: #6bcbff; }
+
+    /* KPI Grid – brand-level metrics */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .kpi-card {
+      background: white;
+      border-radius: 14px;
+      padding: 18px 22px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      border-left: 5px solid #2563eb;
+      transition: transform 0.1s;
+    }
+    .kpi-card:hover { transform: translateY(-2px); }
+    .kpi-card .kpi-label { font-size: 12px; text-transform: uppercase; color: #7f8fa3; letter-spacing: 0.4px; }
+    .kpi-card .kpi-value { font-size: 26px; font-weight: 700; margin-top: 4px; color: #0b1a33; }
+    .kpi-card .kpi-sub { font-size: 13px; color: #5e6f88; margin-top: 2px; }
+    .kpi-card .trend-up { color: #16a34a; }
+    .kpi-card .trend-down { color: #dc2626; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: white;
+      border-radius: 14px 14px 0 0;
+      padding: 8px 16px 0 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      overflow-x: auto;
+    }
+    .tab-btn {
+      padding: 10px 22px;
+      border: none;
+      background: transparent;
+      font-weight: 500;
+      font-size: 14px;
+      color: #5e6f88;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+      border-radius: 8px 8px 0 0;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: #0b1a33; background: #f0f4f9; }
+    .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; background: #f8fafc; }
+
+    .tab-content {
+      background: white;
+      border-radius: 0 0 14px 14px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      margin-bottom: 24px;
+      display: none;
+    }
+    .tab-content.active { display: block; }
+
+    .chart-container { position: relative; height: 350px; margin-top: 8px; }
+    .chart-container.tall { height: 420px; }
+    .chart-container.small { height: 200px; }
+    .chart-container.medium { height: 260px; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+    @media (max-width: 768px) {
+      .two-col, .three-col { grid-template-columns: 1fr; }
+      .header { flex-direction: column; align-items: stretch; gap: 16px; padding: 20px; }
+      .header .brand-meta { justify-content: space-between; }
+    }
+
+    table.diagnostic {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    table.diagnostic th {
+      text-align: left;
+      padding: 8px 12px;
+      background: #f0f4f9;
+      font-weight: 600;
+      color: #0b1a33;
+    }
+    table.diagnostic td { padding: 8px 12px; border-bottom: 1px solid #e9edf2; }
+
+    .badge {
+      display: inline-block;
+      font-size: 12px;
+      padding: 2px 14px;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+    .badge-blue { background: #dbeafe; color: #1d4ed8; }
+    .badge-green { background: #dcfce7; color: #16a34a; }
+    .badge-yellow { background: #fef9c3; color: #ca8a04; }
+    .badge-red { background: #fee2e2; color: #dc2626; }
+
+    .flex-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .mt-16 { margin-top: 16px; }
+    .mb-16 { margin-bottom: 16px; }
+    .text-muted { color: #7f8fa3; font-size: 13px; }
+    .table-wrap { overflow-x: auto; }
+
+    .card {
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .card h4 { font-weight: 600; font-size: 15px; margin-bottom: 8px; color: #0b1a33; }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 16px;
+    }
+    .metric-grid .item {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+      border-bottom: 1px solid #e9edf2;
+      font-size: 14px;
+    }
+    .metric-grid .item .label { color: #5e6f88; }
+    .metric-grid .item .value { font-weight: 600; }
+
+    .brand-logo {
+      display: inline-block;
+      background: rgba(255,255,255,0.12);
+      padding: 6px 16px;
+      border-radius: 40px;
+      font-size: 13px;
+      color: #b0c9e8;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .stat-highlight {
+      background: linear-gradient(135deg, #eff6ff, #dbeafe);
+      border-radius: 12px;
+      padding: 16px 20px;
+      border-left: 4px solid #2563eb;
+    }
+  </style>
+</head>
+<body>
+<div class="dashboard">
+
+  <!-- ===== HEADER: BRAND LEVEL ===== -->
+  <div class="header">
+    <div class="brand-info">
+      <h1>
+        🏢 BrandGuard®
+        <small>Synthetic Control · Brand Performance</small>
+      </h1>
+      <div class="sub">
+        <span>📦 Category: <strong>Floorcare & Home Appliances</strong></span>
+        <span>🏷️ Banner: <strong>KhelMart(KM)· BigBazar(BB)· MegaMart(MM)</strong></span>
+		
+        <span>📅 Measurement Period: <strong>Q1 2026</strong></span>
+        <span class="brand-logo">🔵 8 active campaigns aggregated</span>
+      </div>
+    </div>
+    <div class="brand-meta">
+      <div class="item"><span class="label">Brand Share (Category)</span><span class="value accent">24.7%</span></div>
+      <div class="item"><span class="label">YoY Brand Growth</span><span class="value accent" style="color:#6bcbff;">+8.3%</span></div>
+      <div class="item"><span class="label">Measurement Status</span><span class="value">● Live</span></div>
+    </div>
+  </div>
+
+  <!-- ===== KPI GRID: BRAND METRICS ===== -->
+  <div class="kpi-grid">
+    <div class="kpi-card" style="border-left-color:#2563eb;">
+      <div class="kpi-label">Total Brand Sales (Q1 2026)</div>
+      <div class="kpi-value">$3.42M</div>
+      <div class="kpi-sub">↑ 8.3% YoY · $2.91M projected</div>
+    </div>
+    <div class="kpi-card" style="border-left-color:#10b981;">
+      <div class="kpi-label">Incremental Brand Lift</div>
+      <div class="kpi-value">$512,400</div>
+      <div class="kpi-sub">↑ 14.9% above counterfactual</div>
+    </div>
+    <div class="kpi-card" style="border-left-color:#f59e0b;">
+      <div class="kpi-label">Brand ROAS</div>
+      <div class="kpi-value">0.38</div>
+      <div class="kpi-sub">$1.34M total media spend</div>
+    </div>
+    <div class="kpi-card" style="border-left-color:#8b5cf6;">
+      <div class="kpi-label">Market Share (Category)</div>
+      <div class="kpi-value">24.7%</div>
+      <div class="kpi-sub">↑ +1.2pp vs Q1 2025</div>
+    </div>
+    <div class="kpi-card" style="border-left-color:#ec4899;">
+      <div class="kpi-label">Active Campaigns</div>
+      <div class="kpi-value">8</div>
+      <div class="kpi-sub">4x KM · 3x BB · 1x MM</div>
+    </div>
+  </div>
+
+  <!-- ===== TABS ===== -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="tab-overview">📊 Brand Overview</button>
+    <button class="tab-btn" data-tab="tab-counterfactual">📈 Counterfactual</button>
+    <button class="tab-btn" data-tab="tab-forecast">📉 Forecast</button>
+    <button class="tab-btn" data-tab="tab-components">🧩 Decomposition</button>
+    <button class="tab-btn" data-tab="tab-diagnostics">📋 Model Evaluation</button>
+    <button class="tab-btn" data-tab="tab-campaigns">🎯 Campaign Breakdown</button>
+  </div>
+
+  <!-- ===== TAB 1: BRAND OVERVIEW ===== -->
+  <div id="tab-overview" class="tab-content active">
+    <p style="margin-bottom:16px; color:#475569;">
+      Brand-level synthetic control: aggregate sales across all product lines and banners. The counterfactual (dashed) estimates what brand sales would have been <strong>without any media investment</strong> during Q1 2026.
+    </p>
+    <div class="chart-container tall"><canvas id="overviewChart"></canvas></div>
+    <div class="flex-row mt-16">
+      <span class="badge badge-green">✔️ Counterfactual validated</span>
+      <span class="badge badge-green">✔️ Seasonal decomposition stable</span>
+      <span class="badge badge-yellow">⚠️ DV360v under‑represented</span>
+      <span class="badge badge-blue">📊 8 campaigns aggregated</span>
+    </div>
+    <div class="stat-highlight mt-16" style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+      <span><strong>Brand Incremental Lift:</strong> $512,400</span>
+      <span><strong>Total Media Spend:</strong> $1.34M</span>
+      <span><strong>Brand ROAS:</strong> 0.38</span>
+      <span><strong>Share Gain:</strong> +1.2 pp</span>
+    </div>
+  </div>
+
+  <!-- ===== TAB 2: COUNTERFACTUAL ===== -->
+  <div id="tab-counterfactual" class="tab-content">
+    <p style="margin-bottom:16px; color:#475569;">
+      Brand-level actual sales vs. counterfactual during Q1 2026. The orange area shows post‑campaign decay from all active campaigns combined.
+    </p>
+    <div class="chart-container tall"><canvas id="counterfactualChart"></canvas></div>
+  </div>
+
+  <!-- ===== TAB 3: FORECAST ===== -->
+  <div id="tab-forecast" class="tab-content">
+    <p style="margin-bottom:16px; color:#475569;">
+      Full training history (P3Y = 2023–2025) with brand-level aggregated sales. The forecasted counterfactual extends into Q1 2026.
+    </p>
+    <div class="chart-container tall"><canvas id="forecastChart"></canvas></div>
+  </div>
+
+  <!-- ===== TAB 4: DECOMPOSITION ===== -->
+  <div id="tab-components" class="tab-content">
+    <p style="margin-bottom:16px; color:#475569;">
+      Brand-level contribution breakdown: how much of the incremental lift came from trend, seasonality, media, flyers, and other factors.
+    </p>
+    <div class="two-col">
+      <div><div class="chart-container" style="height:300px;"><canvas id="componentsChart"></canvas></div></div>
+      <div>
+        <div style="background:#f8fafc;padding:18px;border-radius:14px;">
+          <h4 style="font-weight:600;font-size:16px;margin-bottom:10px;">📌 Brand Incremental Breakdown</h4>
+          <ul style="list-style:none;padding:0;font-size:14px;">
+            <li style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e9edf2;"><span>📈 Trend (organic growth)</span> <span><strong>$224,000</strong> (43.7%)</span></li>
+            <li style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e9edf2;"><span>🌞 Seasonality</span> <span><strong>$148,000</strong> (28.9%)</span></li>
+            <li style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e9edf2;"><span>📺 Total Media</span> <span><strong>$101,000</strong> (19.7%)</span></li>
+            <li style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e9edf2;"><span>📰 Flyers</span> <span><strong>$28,400</strong> (5.5%)</span></li>
+            <li style="display:flex;justify-content:space-between;padding:7px 0;"><span>🌀 Other / Residual</span> <span><strong>$11,000</strong> (2.1%)</span></li>
+          </ul>
+          <div style="margin-top:14px;background:#e9edf2;border-radius:8px;padding:10px 14px;font-size:14px;color:#0b1a33;font-weight:600;">
+            Total Brand Incremental: $512,400
+          </div>
+          <div style="margin-top:8px;font-size:13px;color:#5e6f88;">
+            Media accounts for 19.7% of lift — the balance comes from organic trend and seasonality.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB 5: MODEL EVALUATION ===== -->
+  <div id="tab-diagnostics" class="tab-content">
+    <h3 style="font-weight:600;font-size:18px;margin-bottom:12px;">📋 Brand‑Level Model Evaluation</h3>
+
+    <div class="two-col">
+      <div>
+        <h4 style="font-weight:600;font-size:15px;margin-bottom:12px;">📊 Cross‑Validation Horizon</h4>
+        <div class="chart-container small"><canvas id="cvChart"></canvas></div>
+        <p class="text-muted mt-16">Rolling SMAPE and Coverage across forecast horizon (brand aggregate).</p>
+      </div>
+      <div>
+        <h4 style="font-weight:600;font-size:15px;margin-bottom:12px;">📋 Platform Priors (Brand Aggregate)</h4>
+        <div class="table-wrap">
+          <table class="diagnostic">
+            <thead><tr><th>Platform</th><th>Prior</th><th>Active Days</th><th>Share of Spend</th></tr></thead>
+            <tbody>
+              <tr><td>Meta</td><td><span class="badge badge-green">0.50</span></td><td>1,024</td><td>42%</td></tr>
+              <tr><td>Google Shopping</td><td><span class="badge badge-green">0.50</span></td><td>876</td><td>31%</td></tr>
+              <tr><td>Criteo</td><td><span class="badge badge-yellow">0.10</span></td><td>215</td><td>18%</td></tr>
+              <tr><td>DV360v</td><td><span class="badge badge-yellow">0.05</span></td><td>48</td><td>6%</td></tr>
+              <tr><td>TikTok</td><td><span class="badge badge-red">0.05</span></td><td>22</td><td>3%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-muted mt-16">Sparse platforms (TikTok, DV360v) receive tight priors — treat their contribution as exploratory.</p>
+      </div>
+    </div>
+
+    <div class="two-col mt-16">
+      <div>
+        <h4 style="font-weight:600;font-size:15px;margin-bottom:12px;">📈 Model Fit Summary</h4>
+        <div class="card">
+          <div class="metric-grid">
+            <div class="item"><span class="label">R² (historical)</span><span class="value" style="color:#16a34a;">0.91</span></div>
+            <div class="item"><span class="label">MAPE</span><span class="value" style="color:#16a34a;">5.8%</span></div>
+            <div class="item"><span class="label">RMSE</span><span class="value">$8,240</span></div>
+            <div class="item"><span class="label">MAE</span><span class="value">$6,120</span></div>
+            <div class="item"><span class="label">AIC</span><span class="value">1,843</span></div>
+            <div class="item"><span class="label">BIC</span><span class="value">1,902</span></div>
+          </div>
+        </div>
+        <p class="text-muted mt-16">Fit statistics on brand-aggregated training data (P3Y). R² > 0.90 indicates strong explanatory power.</p>
+      </div>
+      <div>
+        <h4 style="font-weight:600;font-size:15px;margin-bottom:12px;">📊 Residual Distribution</h4>
+        <div class="chart-container small"><canvas id="residualHistogram"></canvas></div>
+        <p class="text-muted mt-16">Residuals are centered near zero with slight positive skew — no systematic bias.</p>
+      </div>
+    </div>
+
+    <div class="mt-16">
+      <h4 style="font-weight:600;font-size:15px;margin-bottom:12px;">🔍 Actual vs. Predicted (Training Period)</h4>
+      <div class="chart-container" style="height:260px;"><canvas id="residualScatter"></canvas></div>
+      <p class="text-muted mt-16">Brand-aggregated predictions align closely with actuals; heteroscedasticity is minimal.</p>
+    </div>
+
+    <div class="mt-16" style="background:#f1f5f9;border-radius:12px;padding:16px;">
+      <h4 style="font-weight:600;font-size:15px;margin-bottom:6px;">💡 Brand‑Level Interpretation</h4>
+      <ul style="font-size:14px;color:#475569;list-style:disc;padding-left:20px;margin:0;">
+        <li><strong>Brand ROAS (0.38)</strong> is within expected range for the floorcare category — media drives ~20% of incremental lift.</li>
+        <li><strong>Seasonality and trend</strong> account for ~73% of Q1 growth, reflecting natural category expansion and brand momentum.</li>
+        <li><strong>TikTok and DV360v</strong> have sparse historical data — their contributions should be validated with holdout tests.</li>
+        <li><strong>Flyer activity</strong> adds a consistent 5–6% lift — important to control for in the counterfactual.</li>
+        <li>Residual diagnostics confirm the model is well‑specified at the brand level.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===== TAB 6: CAMPAIGN BREAKDOWN ===== -->
+  <div id="tab-campaigns" class="tab-content">
+    <p style="margin-bottom:16px; color:#475569;">
+      Contribution of each active campaign to the brand‑level incremental lift. Campaigns are ranked by ROAS.
+    </p>
+    <div class="chart-container medium"><canvas id="campaignBreakdown"></canvas></div>
+    <div class="table-wrap mt-16">
+      <table class="diagnostic">
+        <thead><tr><th>Campaign</th><th>Banner</th><th>Spend</th><th>Incremental</th><th>ROAS</th><th>Share of Brand Lift</th></tr></thead>
+        <tbody>
+          <tr><td>DD040026_26_BB_PMA_ALWAYSON-SPA</td><td>BB</td><td>$187,420</td><td>$64,830</td><td>0.35</td><td>12.7%</td></tr>
+          <tr><td>DD100026_26_KM_MIC_MICHELIN-2026</td><td>KM</td><td>$214,000</td><td>$89,880</td><td>0.42</td><td>17.5%</td></tr>
+          <tr><td>RD030025_26_KM_EGO_EG02026</td><td>KM</td><td>$156,300</td><td>$51,580</td><td>0.33</td><td>10.1%</td></tr>
+          <tr><td>RD040025_26_BB_SCY_ENDORPHIN-AZURA</td><td>BB</td><td>$98,200</td><td>$42,230</td><td>0.43</td><td>8.2%</td></tr>
+          <tr><td>RD000026_26_MKT_LSC_SPRING</td><td>MM</td><td>$312,000</td><td>$130,800</td><td>0.42</td><td>25.5%</td></tr>
+          <tr><td>RD0100026_26_KM_KEU_KEURIG-Q1</td><td>KM</td><td>$145,000</td><td>$49,300</td><td>0.34</td><td>9.6%</td></tr>
+          <tr><td>RD040025_25_BB_LUX_Q3-RB-META</td><td>BB</td><td>$124,500</td><td>$45,280</td><td>0.36</td><td>8.8%</td></tr>
+          <tr><td>RD2412400_24_BB_NWB_NB-BASEBALL</td><td>BB</td><td>$102,580</td><td>$38,500</td><td>0.38</td><td>7.5%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-muted mt-16">Total Brand Incremental: <strong>$512,400</strong> · Total Spend: <strong>$1.34M</strong> · Weighted Avg ROAS: <strong>0.38</strong></p>
+  </div>
+</div>
+
+<script>
+  (function() {
+    // ----- Synthetic brand-level data: 3 years of daily sales -----
+    const startDate = moment('2023-01-01');
+    const endDate = moment('2026-04-15');
+    const days = endDate.diff(startDate, 'days') + 1;
+    const labels = [];
+    const salesActual = [];
+    const salesCounterfactual = [];
+
+    // Brand-level: larger scale, smoother, with multiple campaign pulses
+    for (let i = 0; i < days; i++) {
+      const d = moment(startDate).add(i, 'days');
+      labels.push(d.format('YYYY-MM-DD'));
+      const dayOfYear = d.dayOfYear();
+      // Strong yearly seasonality (Q4 peak, Q1 dip)
+      const yearFactor = 1 + 0.30 * Math.sin(2 * Math.PI * (dayOfYear - 45) / 365);
+      // Weekly: higher on weekends
+      const dow = d.day();
+      const weekFactor = 1 + 0.12 * (dow === 0 || dow === 6 ? 1 : 0);
+      // Steady brand growth trend
+      const trend = 1 + 0.00035 * i;
+      // Noise
+      const noise = 1 + 0.04 * (Math.random() - 0.5);
+      const base = 28000 * yearFactor * weekFactor * trend * noise;
+      salesCounterfactual.push(base);
+
+      // Campaign pulses: multiple campaigns overlapping in Q1 2026
+      const campaignStart = days - 91; // Jan 15, 2026
+      let mediaEffect = 0;
+      let flyerEffect = 0;
+
+      if (i >= campaignStart) {
+        // Multi-campaign aggregate effect: higher spend with variation
+        const dayInCampaign = i - campaignStart;
+        // Several campaign waves
+        const wave1 = Math.max(0, Math.sin(dayInCampaign * 0.08)) * 0.6;
+        const wave2 = Math.max(0, Math.sin(dayInCampaign * 0.12 + 1.2)) * 0.4;
+        const mediaIntensity = 0.5 + 0.5 * (wave1 + wave2) / 1.0;
+        const spend = 2000 + 3000 * mediaIntensity + 800 * Math.random();
+        mediaEffect = spend * 0.15 * (1 + 0.3 * Math.random());
+        // Flyer effect on ~20% of days
+        if (Math.random() > 0.78) flyerEffect = 1200 + Math.random() * 2000;
+      }
+      salesActual.push(base + mediaEffect + flyerEffect);
+    }
+
+    const campaignStartIndex = days - 91;
+    const campaignDates = labels.slice(campaignStartIndex);
+    const campaignActual = salesActual.slice(campaignStartIndex);
+    const campaignCounter = salesCounterfactual.slice(campaignStartIndex);
+
+    // ----- Annotation helper -----
+    const campaignAnnotation = {
+      type: 'box',
+      xMin: campaignStartIndex,
+      xMax: days - 1,
+      backgroundColor: 'rgba(37, 99, 235, 0.07)',
+      borderColor: 'rgba(37, 99, 235, 0.20)',
+      borderWidth: 1,
+      label: {
+        content: 'Q1 2026 · 8 Campaigns',
+        enabled: true,
+        position: 'top',
+        font: { size: 11, weight: '600' },
+        color: '#1d4ed8',
+        backgroundColor: 'rgba(255,255,255,0.85)',
+        padding: 4,
+        borderRadius: 4
+      }
+    };
+
+    // ===== 1. Overview Chart =====
+    new Chart(document.getElementById('overviewChart'), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Actual Brand Sales', data: salesActual, borderColor: '#2563eb', borderWidth: 2.5, pointRadius: 0, tension: 0.1, fill: false },
+          { label: 'Counterfactual (no media)', data: salesCounterfactual, borderColor: '#94a3b8', borderDash: [6, 4], borderWidth: 2, pointRadius: 0, tension: 0.1, fill: false }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top' },
+          annotation: { annotations: { campaign: campaignAnnotation } }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxTicksLimit: 15 } },
+          y: { beginAtZero: true, grid: { color: '#e9edf2' }, ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' } }
+        }
+      },
+      plugins: [window['chartjs-plugin-annotation']]
+    });
+
+    // ===== 2. Counterfactual Plot =====
+    new Chart(document.getElementById('counterfactualChart'), {
+      type: 'line',
+      data: {
+        labels: campaignDates,
+        datasets: [
+          { label: 'Actual Brand Sales', data: campaignActual, borderColor: '#2563eb', borderWidth: 2.5, pointRadius: 0, tension: 0.1 },
+          { label: 'Counterfactual', data: campaignCounter, borderColor: '#94a3b8', borderDash: [5, 5], borderWidth: 2, pointRadius: 0, tension: 0.1 },
+          { label: 'Post‑campaign decay (carryover)', data: campaignCounter.map((v, i) => {
+            if (i > campaignDates.length - 18) {
+              const decay = Math.exp(-0.20 * (i - (campaignDates.length - 18)));
+              return v + (campaignActual[i] - campaignCounter[i]) * decay * 0.5;
+            } return null;
+          }), borderColor: '#f59e0b', borderDash: [2, 4], borderWidth: 2.5, pointRadius: 0, tension: 0.1 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'top' } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, grid: { color: '#e9edf2' }, ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' } }
+        }
+      }
+    });
+
+    // ===== 3. Forecast Plot =====
+    new Chart(document.getElementById('forecastChart'), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Historical Brand Sales', data: salesActual, borderColor: '#64748b', borderWidth: 1.5, pointRadius: 0, tension: 0.1 },
+          { label: 'Forecasted Counterfactual', data: salesCounterfactual, borderColor: '#2563eb', borderDash: [4, 4], borderWidth: 2.5, pointRadius: 0, tension: 0.1 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top' },
+          annotation: { annotations: { campaign: { ...campaignAnnotation, label: { ...campaignAnnotation.label, content: 'Q1 2026 · Forecast Window' } } } }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxTicksLimit: 20 } },
+          y: { beginAtZero: true, grid: { color: '#e9edf2' }, ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' } }
+        }
+      },
+      plugins: [window['chartjs-plugin-annotation']]
+    });
+
+    // ===== 4. Components Chart =====
+    new Chart(document.getElementById('componentsChart'), {
+      type: 'bar',
+      data: {
+        labels: ['Brand Incremental'],
+        datasets: [
+          { label: 'Trend', data: [224000], backgroundColor: '#3b82f6' },
+          { label: 'Seasonality', data: [148000], backgroundColor: '#8b5cf6' },
+          { label: 'Media', data: [101000], backgroundColor: '#f59e0b' },
+          { label: 'Flyers', data: [28400], backgroundColor: '#10b981' },
+          { label: 'Other', data: [11000], backgroundColor: '#94a3b8' }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 14, padding: 10 } },
+          tooltip: { callbacks: { label: function(c) { return c.dataset.label + ': $' + c.raw.toLocaleString(); } } }
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, grid: { color: '#e9edf2' }, ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' } }
+        }
+      }
+    });
+
+    // ===== 5. CV Horizon Chart =====
+    new Chart(document.getElementById('cvChart'), {
+      type: 'line',
+      data: {
+        labels: ['1d', '7d', '14d', '30d', '60d', '90d'],
+        datasets: [
+          { label: 'SMAPE (%)', data: [4.1, 4.8, 5.5, 6.2, 7.8, 9.1], borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 2, pointRadius: 4, tension: 0.2, yAxisID: 'y' },
+          { label: 'Coverage (%)', data: [95, 92, 89, 85, 81, 77], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', borderWidth: 2, borderDash: [4, 4], pointRadius: 4, tension: 0.2, yAxisID: 'y1' }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'top' } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, position: 'left', grid: { color: '#e9edf2' }, title: { display: true, text: 'SMAPE %' } },
+          y1: { beginAtZero: true, position: 'right', grid: { display: false }, min: 50, max: 100, title: { display: true, text: 'Coverage %' } }
+        }
+      }
+    });
+
+    // ===== 6. Residual Histogram =====
+    const resData = [];
+    for (let i = 0; i < 200; i++) {
+      let u = 0, v = 0;
+      while (u === 0) u = Math.random();
+      while (v === 0) v = Math.random();
+      const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+      resData.push(z * 280 + 15);
+    }
+    const bins = 20;
+    const minVal = -1000, maxVal = 1000;
+    const binWidth = (maxVal - minVal) / bins;
+    const hist = Array(bins).fill(0);
+    resData.forEach(r => {
+      const idx = Math.floor((r - minVal) / binWidth);
+      if (idx >= 0 && idx < bins) hist[idx]++;
+    });
+    const binLabels = Array.from({length: bins}, (_, i) => Math.round(minVal + i * binWidth + binWidth/2));
+
+    new Chart(document.getElementById('residualHistogram'), {
+      type: 'bar',
+      data: {
+        labels: binLabels,
+        datasets: [{ label: 'Frequency', data: hist, backgroundColor: 'rgba(37,99,235,0.55)', borderColor: '#2563eb', borderWidth: 1 }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { title: { display: true, text: 'Residual ($)' } },
+          y: { beginAtZero: true, grid: { color: '#e9edf2' }, title: { display: true, text: 'Frequency' } }
+        }
+      }
+    });
+
+    // ===== 7. Residual Scatter =====
+    const scatterData = [];
+    for (let i = 0; i < 200; i++) {
+      const actual = 18000 + Math.random() * 42000;
+      const residual = (Math.random() - 0.5) * 1200;
+      const predicted = actual - residual;
+      scatterData.push({ x: actual, y: predicted });
+    }
+    new Chart(document.getElementById('residualScatter'), {
+      type: 'scatter',
+      data: {
+        datasets: [
+          {
+            label: 'Actual vs Predicted',
+            data: scatterData,
+            backgroundColor: 'rgba(37,99,235,0.5)',
+            pointRadius: 4
+          },
+          {
+            label: 'Perfect fit',
+            data: [{x: 5000, y: 5000}, {x: 65000, y: 65000}],
+            type: 'line',
+            borderColor: '#dc2626',
+            borderDash: [4, 4],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'top' } },
+        scales: {
+          x: { title: { display: true, text: 'Actual Sales ($)' }, grid: { color: '#e9edf2' }, ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' } },
+          y: { title: { display: true, text: 'Predicted Sales ($)' }, grid: { color: '#e9edf2' }, ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' } }
+        }
+      }
+    });
+
+    // ===== 8. Campaign Breakdown (bar chart) =====
+    const campaignNames = [
+      'RD000026_26_MKT_LSC_SPRING',
+      'RD100026_26_KM_MIC_MICHELIN-2026',
+      'RD040026_26_BB_PMA_ALWAYSON-SPA',
+      'RD030025_26_KM_EGO_EG02026',
+      'RD040025_26_BB_SCY_ENDORPHIN-AZURA',
+      'RD100026_26_KM_KEU_KEURIG-Q1',
+      'RD040025_25_BB_LUX_Q3-RB-META',
+      'RD412400_24_BB_NWB_NB-BASEBALL'
+    ];
+    const campaignROAS = [0.42, 0.42, 0.35, 0.33, 0.43, 0.34, 0.36, 0.38];
+    const campaignIncremental = [130800, 89880, 64830, 51580, 42230, 49300, 45280, 38500];
+    const campaignSpend = [312000, 214000, 187420, 156300, 98200, 145000, 124500, 102580];
+
+    new Chart(document.getElementById('campaignBreakdown'), {
+      type: 'bar',
+      data: {
+        labels: campaignNames.map(n => n.replace(/^.{0,15}/, '…')),
+        datasets: [
+          { label: 'Incremental $', data: campaignIncremental, backgroundColor: '#3b82f6', borderRadius: 4 },
+          { label: 'ROAS', data: campaignROAS, backgroundColor: '#f59e0b', borderRadius: 4, yAxisID: 'y1' }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top' },
+          tooltip: {
+            callbacks: {
+              label: function(c) {
+                if (c.datasetIndex === 0) return 'Incremental: $' + c.raw.toLocaleString();
+                return 'ROAS: ' + c.raw.toFixed(2);
+              }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, position: 'left', grid: { color: '#e9edf2' }, title: { display: true, text: 'Incremental ($)' }, ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' } },
+          y1: { beginAtZero: true, position: 'right', grid: { display: false }, max: 0.6, title: { display: true, text: 'ROAS' } }
+        }
+      }
+    });
+
+    // ===== Tab switching =====
+    const tabs = document.querySelectorAll('.tab-btn');
+    const contents = document.querySelectorAll('.tab-content');
+    tabs.forEach(btn => {
+      btn.addEventListener('click', function() {
+        tabs.forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        contents.forEach(c => c.classList.remove('active'));
+        document.getElementById(this.dataset.tab).classList.add('active');
+        window.dispatchEvent(new Event('resize'));
+      });
+    });
+  })();
+</script>
+</body>
+</html>
