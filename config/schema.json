@@ -1,0 +1,12 @@
+{
+  "schema_version": "0.0.1",
+  "updated_on": "2026-06-01",
+  "parameters": {
+    "kpi": {
+      "type": "string",
+      "required": true,
+      "default": "sales",
+      "description": "The key performance indicator"
+    }
+  }
+}

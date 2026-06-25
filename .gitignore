@@ -6,6 +6,8 @@ __pycache__/
 # Data
 data
 outputs
+.archive
+
 
 # Virtual environments
 .venv/
