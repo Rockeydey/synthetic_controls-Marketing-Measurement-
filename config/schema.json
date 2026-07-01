@@ -7,6 +7,55 @@
       "required": true,
       "default": "sales",
       "description": "The key performance indicator"
+    },
+    "model_config_multivariate": {
+      "type": "dictionary",
+      "required": true,
+      "default": {
+        "kpi": "sales",
+        "date_col": "month",
+        "split_ratio": 0.8,
+        "multivariate": true,
+        "candidate_regressors": [
+          "search_off_weekly",
+          "social_display_others"
+        ],
+        "fill_method": "median",
+        "interval_width": 0.95,
+        "seasonality_mode": "additive",
+        "yearly_seasonality": true,
+        "weekly_seasonality": true,
+        "verbose": true
+      },
+      "description": "Configuration for multivariate Prophet model"
+    },
+    "model_config_univariate": {
+      "type": "dictionary",
+      "required": true,
+      "default": {
+        "kpi": "sales",
+        "date_col": "month",
+        "split_ratio": 0.8,
+        "multivariate": false,
+        "seasonality_mode": "multiplicative",
+        "yearly_seasonality": true,
+        "verbose": true
+      },
+      "description": "Configuration for univariate Prophet model"
+    },
+    "model_config_custom": {
+      "type": "dictionary",
+      "required": true,
+      "default": {
+        "kpi": "sales",
+        "date_col": "month",
+        "split_ratio": 0.8,
+        "multivariate": false,
+        "seasonality_mode": "multiplicative",
+        "yearly_seasonality": true,
+        "verbose": true
+      },
+      "description": "Configuration for custom Prophet model"
     }
   }
 }

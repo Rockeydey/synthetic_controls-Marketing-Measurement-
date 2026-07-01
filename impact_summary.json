@@ -1,0 +1,21 @@
+{
+  "campaign_regressors": [
+    "search_off_weekly",
+    "social_display_others"
+  ],
+  "num_campaigns": 2,
+  "test_period_start": "2023-07-01T00:00:00",
+  "test_period_end": "2024-03-01T00:00:00",
+  "num_periods": 9,
+  "total_actual_kpi": 22359.0,
+  "total_counterfactual_kpi": 21593.815488117427,
+  "total_incremental_impact": 765.1845118825745,
+  "incremental_lift_pct": 3.543535473402733,
+  "avg_period_incremental_impact": 85.02050132028606,
+  "median_period_incremental_impact": 380.0914398508455,
+  "min_period_incremental_impact": -4570.067726757299,
+  "max_period_incremental_impact": 4593.297972574497,
+  "std_incremental_impact": 3102.2487653090425,
+  "periods_positive_impact": 5,
+  "periods_negative_impact": 4
+}

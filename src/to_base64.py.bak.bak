@@ -1,8 +1,14 @@
+"""
+Updated: 2026-07-01
+
+"""
+
+
 import base64
 from pathlib import Path
 import os
 import re
-from typing import Dict, Union
+from typing import Dict, Union, Optional
 
 def _image_to_data_uri(image_path: Union[str, Path]) -> str:
     image_path = Path(image_path)
@@ -28,40 +34,57 @@ def _image_to_data_uri(image_path: Union[str, Path]) -> str:
 def replace_canvas_with_base64_images(
     html_text: str,
     chart_image_map: Dict[str, Union[str, Path]],
-    keep_hidden_canvas: bool = True
+    keep_hidden_canvas: bool = True,
+    default_width: str = "100%",
+    default_height: str = "100%",
+    chart_size_map: Optional[Dict[str, Dict[str, str]]] = None,
 ) -> str:
-    """
-    Replace <canvas id="..."></canvas> with Base64 <img> for each chart id.
-    If keep_hidden_canvas=True, keeps the original canvas hidden to avoid JS Chart errors.
-    """
     updated_html = html_text
+    chart_size_map = chart_size_map or {}
 
     for chart_id, image_path in chart_image_map.items():
         data_uri = _image_to_data_uri(image_path)
+
+        size = chart_size_map.get(chart_id, {})
+        width = size.get("width", default_width)
+        height = size.get("height", default_height)
+
         img_tag = (
             f'<img src="{data_uri}" alt="{chart_id}" '
-            f'style="max-width:100%;max-height:100%;object-fit:contain;display:block;margin:auto;" />'
+            f'style="width:{width};height:{height};object-fit:contain;display:block;margin:auto;" />'
         )
 
         if keep_hidden_canvas:
             replacement = (
-                f'<div class="embedded-chart" style="width:100%;height:100%;">'
+                f'<div class="embedded-chart" data-chart-id="{chart_id}" style="width:{width};height:{height};">'
                 f"{img_tag}"
-                f'<canvas id="{chart_id}" style="display:none !important;"></canvas>'
+                f'<canvas id="{chart_id}" data-embedded-base64="true" style="display:none !important;"></canvas>'
                 f"</div>"
             )
         else:
             replacement = img_tag
 
-        # Match canvas by exact id, regardless of extra attributes
-        pattern = re.compile(
-            rf'<canvas\b(?=[^>]*\bid=["\']{re.escape(chart_id)}["\'])[^>]*>\s*</canvas>',
-            flags=re.IGNORECASE
+        # 1) If already embedded, replace whole wrapper (idempotent update)
+        embedded_pattern = re.compile(
+            rf'<div\b[^>]*\bclass=["\'][^"\']*\bembedded-chart\b[^"\']*["\'][^>]*'
+            rf'\bdata-chart-id=["\']{re.escape(chart_id)}["\'][^>]*>.*?</div>',
+            flags=re.IGNORECASE | re.DOTALL
         )
+        updated_html, count = embedded_pattern.subn(replacement, updated_html, count=1)
 
-        updated_html, count = pattern.subn(replacement, updated_html, count=1)
+        # 2) Else replace original canvas (but skip marked embedded canvas)
         if count == 0:
-            print(f"[WARN] canvas id='{chart_id}' not found in HTML.")
+            canvas_pattern = re.compile(
+                rf'<canvas\b'
+                rf'(?=[^>]*\bid=["\']{re.escape(chart_id)}["\'])'
+                rf'(?![^>]*\bdata-embedded-base64=["\']true["\'])'
+                rf'[^>]*>\s*</canvas>',
+                flags=re.IGNORECASE
+            )
+            updated_html, count = canvas_pattern.subn(replacement, updated_html, count=1)
+
+        if count == 0:
+            print(f"[WARN] canvas/wrapper for id='{chart_id}' not found in HTML.")
 
     return updated_html
 
@@ -71,7 +94,10 @@ def apply_base64_charts_to_html_file(
     chart_image_map: Dict[str, Union[str, Path]],
     output_file_path: Union[str, Path, None] = None,
     keep_hidden_canvas: bool = True,
-    create_backup: bool = True
+    create_backup: bool = True,
+    default_width: str = "100%",
+    default_height: str = "100%",
+    chart_size_map: Optional[Dict[str, Dict[str, str]]] = None,
 ) -> Path:
     """
     Apply replacements to an HTML file.
@@ -85,7 +111,10 @@ def apply_base64_charts_to_html_file(
     updated = replace_canvas_with_base64_images(
         html_text=original,
         chart_image_map=chart_image_map,
-        keep_hidden_canvas=keep_hidden_canvas
+        keep_hidden_canvas=keep_hidden_canvas,
+        default_width=default_width,
+        default_height=default_height,
+        chart_size_map=chart_size_map,
     )
 
     if output_file_path is None:
@@ -121,7 +150,18 @@ if __name__ == "__main__":
     apply_base64_charts_to_html_file(
         html_file_path=html_path,
         chart_image_map=chart_map,
-        output_file_path=None,          # overwrite same file
-        keep_hidden_canvas=True,        # safe for existing JS
-        create_backup=True
-    )
+        keep_hidden_canvas=True,
+        create_backup=False,
+        default_width="900px",
+        default_height="420px",
+        default_align="center",
+        chart_align_map={
+            "overviewChart": "center",
+            "counterfactualChart": "left",
+            "actualPredictedChart": "right",
+        },
+        chart_size_map={
+            "overviewChart": {"width": "1000px", "height": "500px"},
+            "actualPredictedChart": {"width": "800px", "height": "360px"},
+        },
+        )
